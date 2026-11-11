@@ -1,0 +1,1016 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Акт установки / замены ПУ</title>
+<!-- Telegram Mini App API -->
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<!-- Сканер штрих-кодов и QR: камера и готовые фото -->
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<style>
+  :root {
+    --bg: var(--tg-theme-secondary-bg-color, #efeff4);
+    --card: var(--tg-theme-section-bg-color, var(--tg-theme-bg-color, #ffffff));
+    --text: var(--tg-theme-text-color, #000000);
+    --hint: var(--tg-theme-hint-color, #8e8e93);
+    --link: var(--tg-theme-link-color, #2481cc);
+    --accent: var(--tg-theme-button-color, #2481cc);
+    --accent-text: var(--tg-theme-button-text-color, #ffffff);
+    --head: var(--tg-theme-section-header-text-color, var(--hint));
+    --danger: var(--tg-theme-destructive-text-color, #e53935);
+    /* полупрозрачные цвета подходят и к светлой, и к тёмной теме Telegram */
+    --field: rgba(142, 142, 147, 0.14);
+    --ai: rgba(245, 180, 0, 0.24);
+    --radius: 12px;
+  }
+  @supports (background: color-mix(in srgb, red 50%, blue)) {
+    :root {
+      --field: color-mix(in srgb, var(--hint) 14%, var(--card));
+      --ai: color-mix(in srgb, #f5b400 24%, var(--card));
+    }
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not(.tg) {
+      --bg: #000000; --card: #1c1c1e; --text: #ffffff; --hint: #8e8e93; --link: #4aa3ff; --accent: #2f8cff;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); }
+  body {
+    font: 16px/1.35 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    padding: 12px 12px calc(96px + env(safe-area-inset-bottom));
+    -webkit-tap-highlight-color: transparent;
+  }
+  header { padding: 4px 4px 12px; }
+  header h1 { font-size: 20px; margin: 0; }
+  header .sub { color: var(--hint); font-size: 14px; margin-top: 2px; }
+  .banner { background: var(--ai); border-radius: var(--radius); padding: 10px 12px; font-size: 14px; margin-bottom: 12px; }
+  .section-title { color: var(--head); font-size: 13px; text-transform: uppercase; letter-spacing: .02em; margin: 18px 4px 6px; }
+  .card { background: var(--card); border-radius: var(--radius); padding: 12px; }
+  .row { display: flex; gap: 8px; align-items: flex-end; }
+  .row > .grow { flex: 1; min-width: 0; }
+  .field { margin-top: 10px; }
+  .field:first-child { margin-top: 0; }
+  label { display: block; font-size: 13px; color: var(--hint); margin: 0 0 4px 2px; }
+  input, select, textarea {
+    width: 100%; font: inherit; color: var(--text); background: var(--field);
+    border: 1px solid transparent; border-radius: 10px; padding: 11px 12px; min-height: 44px; outline: none;
+    -webkit-appearance: none; appearance: none;
+  }
+  select { background-image: linear-gradient(45deg, transparent 50%, var(--hint) 50%), linear-gradient(135deg, var(--hint) 50%, transparent 50%);
+    background-position: calc(100% - 18px) 50%, calc(100% - 12px) 50%; background-size: 6px 6px; background-repeat: no-repeat; padding-right: 32px; }
+  textarea { min-height: 64px; resize: vertical; }
+  input:focus, select:focus, textarea:focus { border-color: var(--accent); }
+  .ai { background: var(--ai) !important; }
+  .invalid { border-color: var(--danger) !important; }
+  .badge { font-size: 11px; font-weight: 600; color: #8a6400; background: #ffe7a3; border-radius: 6px; padding: 1px 5px; margin-left: 6px; vertical-align: 1px; }
+  button { font: inherit; border: 0; border-radius: 10px; min-height: 44px; padding: 0 14px; cursor: pointer; }
+  .btn { background: var(--field); color: var(--link); }
+  .btn-primary { background: var(--accent); color: var(--accent-text); font-weight: 600; }
+  .btn-big { width: 100%; min-height: 52px; font-weight: 600; }
+  .btn-icon { min-width: 48px; padding: 0 12px; font-size: 18px; }
+  .btn:disabled, .btn-primary:disabled { opacity: .5; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+  .check { display: flex; align-items: center; gap: 8px; margin: 0; min-height: 44px; color: var(--text); font-size: 14px; white-space: nowrap; }
+  .check input { width: 22px; height: 22px; min-height: 0; padding: 0; margin: 0; -webkit-appearance: checkbox; appearance: auto; accent-color: var(--accent); }
+  input:disabled { opacity: .5; }
+  .seg { display: grid; grid-template-columns: 1fr 1fr; background: var(--field); border-radius: 10px; padding: 3px; gap: 3px; }
+  .seg button { background: transparent; color: var(--text); min-height: 38px; }
+  .seg button.on { background: var(--card); box-shadow: 0 1px 3px rgba(0,0,0,.15); font-weight: 600; }
+  .seg.ai { background: var(--ai); }
+  .photos { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 10px; }
+  .photos:empty { display: none; }
+  .ph { position: relative; aspect-ratio: 1; border-radius: 10px; overflow: hidden; background: var(--field); }
+  .ph img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .ph .st { position: absolute; left: 0; right: 0; bottom: 0; font-size: 11px; padding: 3px 6px; color: #fff; background: rgba(0,0,0,.55); }
+  .ph .st.err { background: rgba(229,57,53,.85); }
+  .ph .st.ok { background: rgba(46,158,91,.85); }
+  .ph .rm { position: absolute; top: 4px; right: 4px; width: 26px; height: 26px; min-height: 0; padding: 0; border-radius: 13px; background: rgba(0,0,0,.55); color: #fff; font-size: 14px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+  .chips:empty { display: none; }
+  .chip { display: inline-flex; align-items: center; gap: 6px; background: var(--field); border-radius: 16px; padding: 6px 6px 6px 12px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 15px; }
+  .chip.ai { background: var(--ai); }
+  .chip button { min-height: 0; width: 24px; height: 24px; padding: 0; border-radius: 12px; background: rgba(0,0,0,.12); color: var(--text); }
+  .notes { margin-top: 12px; }
+  .note { background: var(--ai); border-radius: 10px; padding: 9px 12px; font-size: 14px; margin-top: 6px; display: flex; gap: 8px; align-items: center; }
+  .note span { flex: 1; }
+  .note button { min-height: 34px; font-size: 14px; }
+  .hint { color: var(--hint); font-size: 13px; margin-top: 6px; }
+  .missing { color: var(--danger); font-size: 14px; margin: 12px 4px 0; }
+  #fallbackSave { margin-top: 16px; }
+  .done { text-align: center; padding: 40px 16px; }
+  .done .big { font-size: 56px; }
+  .done h2 { margin: 8px 0; }
+  .done p { color: var(--hint); }
+  .done .actions { display: grid; gap: 8px; margin-top: 20px; }
+  .modal { position: fixed; inset: 0; background: #000; z-index: 50; display: flex; flex-direction: column; }
+  .modal[hidden] { display: none; }
+  .modal .top { display: flex; align-items: center; justify-content: space-between; color: #fff; padding: calc(10px + env(safe-area-inset-top)) 12px 10px; }
+  .modal .top button { background: rgba(255,255,255,.15); color: #fff; }
+  #scanRegion { flex: 1; width: 100%; }
+  #scanRegion video { object-fit: cover; }
+  .toast { position: fixed; left: 12px; right: 12px; bottom: calc(20px + env(safe-area-inset-bottom)); background: rgba(30,30,30,.92); color: #fff;
+    padding: 12px 14px; border-radius: 12px; font-size: 14px; z-index: 60; opacity: 0; transform: translateY(10px); transition: .2s; pointer-events: none; }
+  .toast.show { opacity: 1; transform: none; }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1 id="title">Акт установки ПУ</h1>
+    <div class="sub" id="who">Загрузка…</div>
+  </header>
+  <div class="banner hidden" id="demoBanner">Демо-режим: форма открыта не из Telegram. Откройте её кнопкой «Акт» в боте, чтобы сохранять акты.</div>
+
+  <div class="section-title">Вид работ</div>
+  <div class="card">
+    <div class="seg" id="workType">
+      <button type="button" data-v="Установка" class="on">Установка</button>
+      <button type="button" data-v="Замена">Замена</button>
+    </div>
+  </div>
+
+  <div class="section-title">Фото</div>
+  <div class="card">
+    <div class="grid2">
+      <button class="btn-primary btn-big" data-photo="meter">📷 Счётчик</button>
+      <button class="btn-primary btn-big" data-photo="seal">🔒 Пломба</button>
+    </div>
+    <button class="btn btn-big" style="margin-top:8px" data-photo="gallery">🖼 Выбрать из галереи</button>
+    <div class="photos" id="photos"></div>
+    <div class="hint">ИИ заполнит номер ПУ, тип, показания и пломбы. Поля с жёлтым фоном проверьте.</div>
+    <input type="file" id="fileCamera" accept="image/*" capture="environment" hidden>
+    <input type="file" id="fileGallery" accept="image/*" multiple hidden>
+    <div id="qrHidden" style="display:none"></div>
+  </div>
+
+  <div class="section-title">Прибор учёта</div>
+  <div class="card">
+    <div class="field">
+      <label for="serial">Заводской номер ПУ<span class="badge hidden" data-badge="serial">ИИ</span></label>
+      <div class="row">
+        <input class="grow" id="serial" inputmode="text" autocomplete="off" autocapitalize="characters" placeholder="0123456789">
+        <button class="btn btn-icon" id="scanSerial" title="Сканировать штрих-код">▦</button>
+      </div>
+    </div>
+    <div class="field">
+      <label>Тип<span class="badge hidden" data-badge="phase">ИИ</span></label>
+      <div class="seg" id="phase">
+        <button type="button" data-v="1-ф">1-фазный</button>
+        <button type="button" data-v="3-ф">3-фазный</button>
+      </div>
+    </div>
+    <div class="row field">
+      <div class="grow">
+        <label for="model">Марка, модель<span class="badge hidden" data-badge="model">ИИ</span></label>
+        <input id="model" autocomplete="off" placeholder="Меркурий 201.8">
+      </div>
+      <div style="width:96px">
+        <label for="year">Год<span class="badge hidden" data-badge="year">ИИ</span></label>
+        <input id="year" inputmode="numeric" maxlength="4" placeholder="2025">
+      </div>
+    </div>
+  </div>
+
+  <div class="section-title">Пломбы<span class="badge hidden" data-badge="seals">ИИ</span></div>
+  <div class="card">
+    <div class="chips" id="seals"></div>
+    <div class="row">
+      <input class="grow" id="sealInput" autocomplete="off" autocapitalize="characters" placeholder="Номер пломбы">
+      <button class="btn btn-icon" id="addSeal" title="Добавить">＋</button>
+      <button class="btn btn-icon" id="scanSeal" title="Сканировать">▦</button>
+    </div>
+  </div>
+
+  <div class="section-title">Начальные показания, кВт·ч<span class="badge hidden" data-badge="reading1">ИИ</span></div>
+  <div class="card grid2">
+    <div><label for="reading1">Т1 / общие</label><input id="reading1" inputmode="decimal" placeholder="0,0"></div>
+    <div><label for="reading2">Т2 (если есть)</label><input id="reading2" inputmode="decimal" placeholder="—"></div>
+  </div>
+
+  <div id="oldBlock" class="hidden">
+    <div class="section-title">Снятый прибор учёта</div>
+    <div class="card">
+      <button class="btn btn-big" data-photo="old">📷 Фото снятого ПУ</button>
+      <div class="field">
+        <label for="oldSerial">Заводской номер<span class="badge hidden" data-badge="oldSerial">ИИ</span></label>
+        <input id="oldSerial" autocomplete="off" autocapitalize="characters" placeholder="01234567">
+      </div>
+      <div class="field">
+        <label for="oldReading">Показания при снятии, кВт·ч<span class="badge hidden" data-badge="oldReading">ИИ</span></label>
+        <div class="row">
+          <input class="grow" id="oldReading" inputmode="decimal" placeholder="0,0">
+          <label class="check"><input type="checkbox" id="oldUnreadable"> не читаются</label>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-title">Адрес</div>
+  <div class="card">
+    <div class="field">
+      <label for="district">Район</label>
+      <select id="district"><option value="">Выберите район</option></select>
+      <input id="districtText" class="hidden" placeholder="Район">
+    </div>
+    <div class="field">
+      <label for="street">Улица</label>
+      <select id="street" disabled><option value="">Сначала выберите район</option></select>
+      <input id="streetText" class="hidden" placeholder="Улица" style="margin-top:8px">
+    </div>
+    <div class="grid2 field">
+      <div><label for="house">Дом</label><input id="house" autocomplete="off" placeholder="12А"></div>
+      <div><label for="apt">Квартира</label><input id="apt" autocomplete="off" placeholder="5"></div>
+    </div>
+    <div class="grid3 field">
+      <div><label for="tp">ТП</label><input id="tp" autocomplete="off" placeholder="233"></div>
+      <div><label for="feeder">Фидер</label><input id="feeder" autocomplete="off" placeholder="Ф-68"></div>
+      <div><label for="substation">ПС</label><input id="substation" autocomplete="off" placeholder="—"></div>
+    </div>
+  </div>
+
+  <div class="section-title">Абонент</div>
+  <div class="card">
+    <div class="field">
+      <label for="account">Лицевой счёт</label>
+      <div class="row">
+        <input class="grow" id="account" inputmode="numeric" autocomplete="off" placeholder="Необязательно">
+        <button class="btn" id="findAccount">Найти</button>
+      </div>
+    </div>
+    <div class="field"><label for="abonent">ФИО абонента</label><input id="abonent" autocomplete="off"></div>
+  </div>
+
+  <div class="section-title">Дополнительно</div>
+  <div class="card">
+    <div class="field"><label for="comment">Комментарий</label><textarea id="comment" placeholder="Например: ПУ перенесён на фасад"></textarea></div>
+    <div class="row field">
+      <input class="grow" id="geo" readonly placeholder="Нет геопозиции">
+      <button class="btn" id="getGeo">📍 Добавить</button>
+    </div>
+  </div>
+
+  <div class="notes" id="notes"></div>
+  <div class="missing hidden" id="missing"></div>
+  <button class="btn-primary btn-big hidden" id="fallbackSave">Сохранить акт</button>
+</div>
+
+<div class="done hidden" id="done">
+  <div class="big">✅</div>
+  <h2 id="doneTitle">Акт сохранён</h2>
+  <p id="doneText">PDF отправлен вам в чат с ботом.</p>
+  <div class="actions">
+    <button class="btn-primary btn-big" id="newAct">Новый акт</button>
+    <button class="btn btn-big" id="closeApp">Закрыть и открыть чат</button>
+  </div>
+</div>
+
+<div class="modal" id="scanner" hidden>
+  <div class="top"><span id="scanTitle">Наведите на штрих-код</span><button id="scanClose">Закрыть</button></div>
+  <div id="scanRegion"></div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+'use strict';
+// ───────────── Настройка: URL веб-приложения Apps Script (…/exec) ─────────────
+const CONFIG = {
+  API_URL: 'https://script.google.com/macros/s/AKfycbxOw0Umci3KJ8FIo3r0xOPdLojP7hM5zTZa0z1VUdzjhgxzHGOaaMAOTuGaVhBAWWT6/exec',
+  MAX_SIDE: 1800,     // фото сжимаются до 1800 px по длинной стороне
+  JPEG_QUALITY: 0.85,
+};
+
+const INIT_DATA = (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData) || '';
+const DEMO = !INIT_DATA;
+// Вне Telegram (демо в браузере) методы WebApp не вызываем: часть из них бросает исключения
+const tg = DEMO ? null : window.Telegram.WebApp;
+const ver = (v) => !!(tg && tg.isVersionAtLeast && tg.isVersionAtLeast(v));
+const $ = (s) => document.querySelector(s);
+const $$ = (s) => Array.from(document.querySelectorAll(s));
+
+const TEXT_FIELDS = ['serial', 'model', 'year', 'reading1', 'reading2', 'oldSerial', 'oldReading', 'house', 'apt',
+  'tp', 'feeder', 'substation', 'account', 'abonent', 'comment', 'geo'];
+const LABELS = {
+  serial: 'номер ПУ', phase: 'тип', model: 'марка', year: 'год выпуска', reading1: 'показания', reading2: 'показания Т2',
+  seals: 'пломбы', district: 'район', street: 'улица', house: 'дом', photos: 'фото',
+  oldSerial: 'номер снятого ПУ', oldReading: 'показания снятого ПУ',
+};
+const WORK = { INSTALL: 'Установка', REPLACE: 'Замена' };
+const OLD_UNREADABLE = 'не читаются';
+
+const state = {
+  districts: [],
+  settings: { requirePhoto: true, requireSeals: true, requireOldMeter: true, maxPhotos: 6 },
+  workType: WORK.INSTALL,
+  phase: '',
+  seals: [],
+  photos: [],          // { key, id, url, thumb, status: 'up'|'ok'|'err', text }
+  ai: new Set(),       // поля, заполненные ИИ и ещё не исправленные
+  edited: new Set(),   // поля, исправленные после ИИ
+  notes: [],           // { text, action?, label? }
+  requestId: newId(),
+  busy: false,
+};
+
+function newId() {
+  return (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2)).replace(/-/g, '');
+}
+
+// ───────────── Telegram ─────────────
+if (tg) {
+  document.documentElement.classList.add('tg');
+  tg.ready();
+  tg.expand();
+  if (ver('7.7')) tg.disableVerticalSwipes(); // форма не закрывается случайным свайпом при прокрутке
+  tg.MainButton.setParams({ text: 'Сохранить акт', is_visible: true, is_active: true });
+  tg.MainButton.onClick(() => submit(false));
+} else {
+  $('#demoBanner').classList.remove('hidden');
+  $('#fallbackSave').classList.remove('hidden');
+}
+$('#fallbackSave').addEventListener('click', () => submit(false));
+
+function toast(text, ms = 3000) {
+  const t = $('#toast');
+  t.textContent = text;
+  t.classList.add('show');
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => t.classList.remove('show'), ms);
+}
+function alertBox(text) {
+  return new Promise((resolve) => (ver('6.2') ? tg.showAlert(text, () => resolve()) : (alert(text), resolve())));
+}
+function confirmBox(text) {
+  return new Promise((resolve) => (ver('6.2') ? tg.showConfirm(text, (ok) => resolve(!!ok)) : resolve(confirm(text))));
+}
+function haptic(type) {
+  try { if (ver('6.1')) tg.HapticFeedback.notificationOccurred(type); } catch (e) { /* нет поддержки */ }
+}
+
+// ───────────── API ─────────────
+async function api(action, payload = {}) {
+  if (DEMO) throw new Error('Откройте форму из Telegram-бота.');
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 120000);
+  try {
+    // Без заголовков: «простой» запрос без CORS-preflight, Apps Script его принимает
+    const res = await fetch(CONFIG.API_URL, {
+      method: 'POST',
+      body: JSON.stringify(Object.assign({ action, initData: INIT_DATA, client: 'miniapp' }, payload)),
+      signal: ctrl.signal,
+    });
+    const text = await res.text();
+    let data;
+    try { data = JSON.parse(text); } catch (e) {
+      throw new Error('Сервер ответил не JSON. Проверьте API_URL и доступ «Все» в развёртывании Apps Script.');
+    }
+    if (!data.ok && !data.duplicate && !data.missing) throw new Error(data.error || 'Ошибка сервера');
+    return data;
+  } catch (e) {
+    if (e.name === 'AbortError') throw new Error('Сервер не ответил за 2 минуты. Проверьте связь и попробуйте ещё раз.');
+    if (e instanceof TypeError) throw new Error('Нет связи с сервером. Проверьте интернет.');
+    throw e;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// ───────────── Справочники ─────────────
+async function init() {
+  try {
+    if (DEMO) {
+      $('#who').textContent = 'Демо-режим';
+      state.districts = [
+        { name: 'Центральный (пример)', streets: ['ул. Ленина', 'пр. Мира'] },
+        { name: 'Северный (пример)', streets: ['ул. Садовая'] },
+      ];
+    } else {
+      const r = await api('init');
+      $('#who').textContent = 'Монтажник: ' + r.technician.name;
+      state.districts = r.districts || [];
+      state.settings = Object.assign(state.settings, r.settings || {});
+    }
+  } catch (e) {
+    $('#who').textContent = 'Ошибка: ' + e.message;
+    alertBox(e.message);
+  }
+  fillDistricts();
+  await restoreDraft();
+  refresh();
+}
+
+function fillDistricts() {
+  const sel = $('#district');
+  sel.innerHTML = '<option value="">Выберите район</option>';
+  state.districts.forEach((d) => sel.add(new Option(d.name, d.name)));
+  sel.add(new Option('Другой район…', '__other'));
+}
+
+function fillStreets(selected) {
+  const sel = $('#street');
+  const d = state.districts.find((x) => x.name === $('#district').value);
+  sel.innerHTML = '';
+  if (!d && $('#district').value !== '__other') {
+    sel.add(new Option('Сначала выберите район', ''));
+    sel.disabled = true;
+    return;
+  }
+  sel.disabled = false;
+  sel.add(new Option('Выберите улицу', ''));
+  (d ? d.streets : []).forEach((s) => sel.add(new Option(s, s)));
+  sel.add(new Option('Другая улица…', '__other'));
+  if (selected) {
+    if (d && d.streets.includes(selected)) sel.value = selected;
+    else { sel.value = '__other'; $('#streetText').value = selected; }
+  } else if (!d) {
+    sel.value = '__other'; // район введён вручную — улица тоже вручную
+  }
+  $('#streetText').classList.toggle('hidden', sel.value !== '__other');
+}
+
+$('#district').addEventListener('change', () => {
+  $('#districtText').classList.toggle('hidden', $('#district').value !== '__other');
+  fillStreets();
+  changed();
+});
+$('#street').addEventListener('change', () => {
+  $('#streetText').classList.toggle('hidden', $('#street').value !== '__other');
+  changed();
+});
+['districtText', 'streetText'].forEach((id) => $('#' + id).addEventListener('input', changed));
+
+function getDistrict() {
+  return $('#district').value === '__other' ? $('#districtText').value.trim() : $('#district').value;
+}
+function getStreet() {
+  return $('#street').value === '__other' ? $('#streetText').value.trim() : $('#street').value;
+}
+function setAddress(district, street) {
+  if (!district) return;
+  if (state.districts.some((d) => d.name === district)) {
+    $('#district').value = district;
+    $('#districtText').classList.add('hidden');
+  } else {
+    $('#district').value = '__other';
+    $('#districtText').value = district;
+    $('#districtText').classList.remove('hidden');
+  }
+  fillStreets(street);
+}
+
+// ───────────── Поля и пометки ИИ ─────────────
+function setAiFlag(key, on) {
+  if (on) state.ai.add(key); else state.ai.delete(key);
+  const el = key === 'phase' ? $('#phase') : $('#' + key);
+  if (el && key !== 'seals') el.classList.toggle('ai', on);
+  $$('[data-badge="' + key + '"]').forEach((b) => b.classList.toggle('hidden', !on));
+}
+function userEdited(key) {
+  if (state.ai.has(key)) {
+    setAiFlag(key, false);
+    state.edited.add(key);
+  }
+}
+TEXT_FIELDS.forEach((key) => {
+  const el = $('#' + key);
+  el.addEventListener('input', () => {
+    userEdited(key === 'reading2' ? 'reading1' : key);
+    el.classList.remove('invalid');
+    changed();
+  });
+});
+
+$$('#phase button').forEach((b) => b.addEventListener('click', () => {
+  setPhase(b.dataset.v);
+  userEdited('phase');
+  changed();
+}));
+function setPhase(v) {
+  state.phase = v;
+  $$('#phase button').forEach((b) => b.classList.toggle('on', b.dataset.v === v));
+}
+
+// Вид работ: при замене появляется блок «Снятый прибор учёта»
+$$('#workType button').forEach((b) => b.addEventListener('click', () => {
+  setWorkType(b.dataset.v);
+  changed();
+}));
+function setWorkType(v) {
+  state.workType = v === WORK.REPLACE ? WORK.REPLACE : WORK.INSTALL;
+  const replace = state.workType === WORK.REPLACE;
+  $$('#workType button').forEach((b) => b.classList.toggle('on', b.dataset.v === state.workType));
+  $('#oldBlock').classList.toggle('hidden', !replace);
+  $('#title').textContent = replace ? 'Акт замены ПУ' : 'Акт установки ПУ';
+}
+$('#oldUnreadable').addEventListener('change', () => {
+  setOldUnreadable($('#oldUnreadable').checked);
+  userEdited('oldReading');
+  changed();
+});
+function setOldUnreadable(on) {
+  $('#oldUnreadable').checked = on;
+  $('#oldReading').disabled = on;
+  if (on) $('#oldReading').classList.remove('invalid');
+}
+
+// Пломбы
+function cleanSeal(s) {
+  return String(s || '').toUpperCase().replace(/№/g, '').replace(/[^0-9A-ZА-ЯЁ]/g, '');
+}
+function addSeal(raw, fromAi) {
+  const s = cleanSeal(raw);
+  if (s.length < 4 || (s.match(/\d/g) || []).length < 3) return false;
+  if (state.seals.some((x) => x.v === s)) return false;
+  state.seals.push({ v: s, ai: !!fromAi });
+  if (fromAi) setAiFlag('seals', true); else userEdited('seals');
+  renderSeals();
+  return true;
+}
+function renderSeals() {
+  const box = $('#seals');
+  box.innerHTML = '';
+  state.seals.forEach((s, i) => {
+    const chip = document.createElement('span');
+    chip.className = 'chip' + (s.ai ? ' ai' : '');
+    chip.textContent = s.v;
+    const rm = document.createElement('button');
+    rm.textContent = '✕';
+    rm.title = 'Удалить';
+    rm.onclick = () => { state.seals.splice(i, 1); userEdited('seals'); renderSeals(); changed(); };
+    chip.appendChild(rm);
+    box.appendChild(chip);
+  });
+}
+$('#addSeal').addEventListener('click', () => {
+  const v = $('#sealInput').value;
+  const parts = v.split(/[,;]+/);
+  let added = 0;
+  parts.forEach((p) => { if (addSeal(p, false)) added++; });
+  if (added) { $('#sealInput').value = ''; changed(); } else if (v.trim()) toast('Номер пломбы: буквы и цифры, не меньше 3 цифр');
+});
+$('#sealInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); $('#addSeal').click(); } });
+
+// ───────────── Фото → Диск + ИИ ─────────────
+let photoKind = 'meter';
+$$('[data-photo]').forEach((b) => b.addEventListener('click', () => {
+  if (state.photos.length >= state.settings.maxPhotos) return toast('Максимум ' + state.settings.maxPhotos + ' фото');
+  photoKind = b.dataset.photo === 'gallery' ? 'auto' : b.dataset.photo; // meter, seal, old или auto
+  (b.dataset.photo === 'gallery' ? $('#fileGallery') : $('#fileCamera')).click();
+}));
+['fileCamera', 'fileGallery'].forEach((id) => $('#' + id).addEventListener('change', (e) => {
+  const files = Array.from(e.target.files || []).slice(0, state.settings.maxPhotos - state.photos.length);
+  e.target.value = '';
+  files.forEach((f) => handlePhoto(f, photoKind));
+}));
+
+async function compressImage(file) {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise((resolve, reject) => {
+      const i = new Image();
+      i.onload = () => resolve(i);
+      i.onerror = () => reject(new Error('Не удалось открыть фото'));
+      i.src = url;
+    });
+    const scale = Math.min(1, CONFIG.MAX_SIDE / Math.max(img.naturalWidth, img.naturalHeight));
+    const c = document.createElement('canvas');
+    c.width = Math.round(img.naturalWidth * scale);
+    c.height = Math.round(img.naturalHeight * scale);
+    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height); // браузер сам учитывает поворот из EXIF
+    const dataUrl = c.toDataURL('image/jpeg', CONFIG.JPEG_QUALITY);
+    const t = document.createElement('canvas');
+    const ts = 240 / Math.max(c.width, c.height);
+    t.width = Math.round(c.width * ts);
+    t.height = Math.round(c.height * ts);
+    t.getContext('2d').drawImage(c, 0, 0, t.width, t.height);
+    return { b64: dataUrl.split(',')[1], thumb: t.toDataURL('image/jpeg', 0.7) };
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+/** Читает штрих-код прямо с фото (без камеры в реальном времени). */
+async function barcodeFromFile(file) {
+  if (!window.Html5Qrcode) return null;
+  try {
+    const reader = new Html5Qrcode('qrHidden', { formatsToSupport: barcodeFormats(), verbose: false });
+    const res = reader.scanFileV2 ? await reader.scanFileV2(file, false) : { decodedText: await reader.scanFile(file, false) };
+    const format = (res.result && res.result.format && res.result.format.formatName) || '';
+    return { text: res.decodedText, format };
+  } catch (e) {
+    return null; // штрих-кода на фото нет — это нормально
+  }
+}
+function barcodeFormats() {
+  const F = window.Html5QrcodeSupportedFormats || {};
+  return ['QR_CODE', 'DATA_MATRIX', 'CODE_128', 'CODE_39', 'CODE_93', 'ITF', 'EAN_13', 'EAN_8', 'CODABAR', 'UPC_A', 'PDF_417']
+    .map((k) => F[k]).filter((v) => v !== undefined);
+}
+/** Номер ПУ из содержимого штрих-кода: цифровая последовательность 6–16 знаков. */
+function serialFromBarcode(text) {
+  const runs = String(text || '').match(/\d{6,16}/g) || [];
+  return runs.sort((a, b) => b.length - a.length)[0] || '';
+}
+
+async function handlePhoto(file, kind) {
+  const p = { key: newId(), status: 'up', text: 'Загрузка…', thumb: '' };
+  state.photos.push(p);
+  renderPhotos();
+  try {
+    // Штрих-код ищем только на новом ПУ: со снятого он попал бы в номер нового прибора
+    const noBarcode = kind === 'seal' || kind === 'old';
+    const [img, code] = await Promise.all([compressImage(file), noBarcode ? Promise.resolve(null) : barcodeFromFile(file)]);
+    p.thumb = img.thumb;
+    p.text = 'Распознаю…';
+    renderPhotos();
+    if (code) applyBarcode(code);
+    if (DEMO) {
+      p.status = 'ok'; p.text = 'Демо: без ИИ';
+      renderPhotos();
+      return;
+    }
+    const r = await api('photo', { image: img.b64, mime: 'image/jpeg', kind, recognize: true });
+    p.id = r.photo.id;
+    p.url = r.photo.url;
+    if (r.ai) {
+      mergeAi(r.ai, state.photos.indexOf(p) + 1, kind);
+      p.status = 'ok'; p.text = '✓ Распознано';
+      haptic('success');
+    } else {
+      p.status = 'ok'; p.text = 'Сохранено';
+      if (r.aiError) addNote(r.aiError);
+    }
+  } catch (e) {
+    p.status = 'err';
+    p.text = 'Ошибка';
+    addNote('Фото не загружено: ' + e.message);
+    haptic('error');
+  }
+  renderPhotos();
+  changed();
+}
+
+function renderPhotos() {
+  const box = $('#photos');
+  box.innerHTML = '';
+  state.photos.forEach((p, i) => {
+    const d = document.createElement('div');
+    d.className = 'ph';
+    if (p.thumb) {
+      const img = document.createElement('img');
+      img.src = p.thumb;
+      img.alt = 'Фото ' + (i + 1);
+      d.appendChild(img);
+    }
+    const st = document.createElement('div');
+    st.className = 'st' + (p.status === 'err' ? ' err' : p.status === 'ok' ? ' ok' : '');
+    st.textContent = p.text;
+    d.appendChild(st);
+    if (p.status !== 'up') {
+      const rm = document.createElement('button');
+      rm.className = 'rm';
+      rm.textContent = '✕';
+      rm.title = 'Убрать фото из акта';
+      rm.onclick = () => { state.photos.splice(i, 1); renderPhotos(); changed(); };
+      d.appendChild(rm);
+    }
+    box.appendChild(d);
+  });
+}
+
+/** Переносит ответ ИИ в форму: заполняет только пустые поля, расхождения показывает заметкой. */
+function mergeAi(ai, photoNo, kind) {
+  const fill = (key, value, conf) => {
+    if (value === '' || value === null || value === undefined) return;
+    const el = $('#' + key);
+    if (el.disabled) return;
+    const current = el.value.trim();
+    const v = String(value).replace('.', /^reading|^oldReading/.test(key) ? ',' : '.');
+    if (!current) {
+      el.value = v;
+      setAiFlag(key === 'reading2' ? 'reading1' : key, true);
+      if (conf !== undefined && conf < 0.6) addNote('Проверьте ' + (LABELS[key] || key) + ': ИИ не уверен.');
+    } else if (current.replace(',', '.') !== String(value)) {
+      addNote('Фото ' + photoNo + ': ' + (LABELS[key] || key) + ' «' + v + '» не совпадает с «' + current + '».', () => {
+        el.value = v;
+        setAiFlag(key === 'reading2' ? 'reading1' : key, true);
+        changed();
+      }, 'Заменить');
+    }
+  };
+  if (kind === 'old') {
+    // Фото снятого ПУ: только его номер и показания
+    fill('oldSerial', ai.serial, ai.serialConf);
+    fill('oldReading', ai.reading1, ai.readingConf);
+    if (ai.photoType === 'other' || ai.photoType === 'seal') addNote('Фото ' + photoNo + ': не похоже на снятый счётчик.');
+    else if (ai.notes) addNote('Фото ' + photoNo + ' (снятый ПУ): ' + ai.notes);
+    return;
+  }
+  fill('serial', ai.serial, ai.serialConf);
+  fill('model', ai.model);
+  fill('year', ai.year);
+  fill('reading1', ai.reading1, ai.readingConf);
+  fill('reading2', ai.reading2, ai.readingConf);
+  if (ai.phase && !state.phase) {
+    setPhase(ai.phase);
+    setAiFlag('phase', true);
+  }
+  (ai.seals || []).forEach((s) => addSeal(s, true));
+  if (ai.seals && ai.seals.length && ai.sealConf < 0.6) addNote('Проверьте пломбы: ИИ не уверен.');
+  if (ai.photoType === 'other') addNote('Фото ' + photoNo + ': не похоже на счётчик или пломбу.');
+  else if (ai.notes) addNote('Фото ' + photoNo + ': ' + ai.notes);
+}
+
+/** Номер со штрих-кода точнее ИИ, но EAN/UPC обычно код товара, а не заводской номер. */
+function applyBarcode(code) {
+  const serial = serialFromBarcode(code.text);
+  if (!serial) return;
+  const productCode = /EAN|UPC/.test(code.format);
+  const el = $('#serial');
+  if (!el.value.trim() && !productCode) {
+    el.value = serial;
+    setAiFlag('serial', true);
+    addNote('Номер ПУ взят из штрих-кода — сверьте с шильдиком.');
+  } else if (el.value.trim() !== serial) {
+    addNote('Штрих-код: ' + serial + (productCode ? ' (похоже на код товара)' : ''), () => {
+      el.value = serial;
+      userEdited('serial');
+      changed();
+    }, 'Взять');
+  }
+}
+
+// ───────────── Заметки ─────────────
+function addNote(text, action, label) {
+  if (state.notes.some((n) => n.text === text)) return;
+  state.notes.push({ text, action, label });
+  if (state.notes.length > 6) state.notes.shift();
+  renderNotes();
+}
+function renderNotes() {
+  const box = $('#notes');
+  box.innerHTML = '';
+  state.notes.forEach((n, i) => {
+    const d = document.createElement('div');
+    d.className = 'note';
+    const s = document.createElement('span');
+    s.textContent = '⚠️ ' + n.text;
+    d.appendChild(s);
+    if (n.action) {
+      const b = document.createElement('button');
+      b.className = 'btn';
+      b.textContent = n.label || 'Применить';
+      b.onclick = () => { n.action(); state.notes.splice(i, 1); renderNotes(); };
+      d.appendChild(b);
+    }
+    const x = document.createElement('button');
+    x.className = 'btn';
+    x.textContent = '✕';
+    x.onclick = () => { state.notes.splice(i, 1); renderNotes(); };
+    d.appendChild(x);
+    box.appendChild(d);
+  });
+}
+
+// ───────────── Сканер штрих-кодов (камера) ─────────────
+let scanner = null;
+async function openScanner(title, onResult) {
+  if (!window.Html5Qrcode) return alertBox('Сканер не загрузился. Сфотографируйте штрих-код кнопкой «Счётчик».');
+  $('#scanTitle').textContent = title;
+  $('#scanner').hidden = false;
+  scanner = new Html5Qrcode('scanRegion', {
+    formatsToSupport: barcodeFormats(),
+    verbose: false,
+    useBarCodeDetectorIfSupported: true, // встроенный распознаватель браузера, если есть
+    experimentalFeatures: { useBarCodeDetectorIfSupported: true },
+  });
+  try {
+    await scanner.start(
+      { facingMode: 'environment' },
+      { fps: 10, qrbox: (w, h) => ({ width: Math.max(120, Math.floor(w * 0.85)), height: Math.max(80, Math.floor(h * 0.4)) }) },
+      (text) => { haptic('success'); closeScanner(); onResult(text); },
+      () => {}
+    );
+  } catch (e) {
+    closeScanner();
+    alertBox('Камера недоступна (' + (e.message || e) + '). Разрешите доступ к камере для Telegram или сфотографируйте штрих-код кнопкой «Счётчик».');
+  }
+}
+async function closeScanner() {
+  const s = scanner;
+  scanner = null;
+  $('#scanner').hidden = true;
+  if (s) {
+    try { await s.stop(); } catch (e) { /* уже остановлен */ }
+    try { s.clear(); } catch (e) { /* нечего очищать */ }
+  }
+}
+$('#scanClose').addEventListener('click', closeScanner);
+$('#scanSerial').addEventListener('click', () => openScanner('Штрих-код номера ПУ', (text) => {
+  const serial = serialFromBarcode(text) || cleanSeal(text);
+  $('#serial').value = serial;
+  userEdited('serial');
+  changed();
+  toast('Номер ПУ: ' + serial);
+}));
+$('#scanSeal').addEventListener('click', () => openScanner('Штрих-код или QR пломбы', (text) => {
+  if (addSeal(text, false)) { changed(); toast('Пломба добавлена'); } else toast('Не похоже на номер пломбы: ' + text);
+}));
+
+// ───────────── Абонент и геопозиция ─────────────
+$('#findAccount').addEventListener('click', lookupAccount);
+async function lookupAccount() {
+  const acc = $('#account').value.replace(/\s+/g, '');
+  if (!acc) return toast('Введите лицевой счёт');
+  try {
+    const r = await api('lookup', { account: acc });
+    if (!r.abonent) return toast('Лицевой счёт не найден — введите ФИО вручную');
+    if (r.abonent.name) $('#abonent').value = r.abonent.name;
+    if (!getStreet() && r.abonent.street) {
+      setAddress(r.abonent.district, r.abonent.street);
+      if (r.abonent.house) $('#house').value = r.abonent.house;
+      if (r.abonent.apt) $('#apt').value = r.abonent.apt;
+    }
+    toast('Абонент найден');
+    changed();
+  } catch (e) {
+    toast(e.message);
+  }
+}
+
+$('#getGeo').addEventListener('click', () => {
+  const put = (lat, lon) => { $('#geo').value = lat.toFixed(6) + ', ' + lon.toFixed(6); changed(); toast('Геопозиция добавлена'); };
+  const lm = tg && tg.LocationManager;
+  if (lm && ver('8.0')) {
+    lm.init(() => {
+      if (!lm.isLocationAvailable) return browserGeo(put);
+      lm.getLocation((loc) => (loc ? put(loc.latitude, loc.longitude) : toast('Нет доступа к геопозиции — разрешите его в настройках бота')));
+    });
+  } else {
+    browserGeo(put);
+  }
+});
+function browserGeo(put) {
+  if (!navigator.geolocation) return toast('Геопозиция недоступна');
+  navigator.geolocation.getCurrentPosition((p) => put(p.coords.latitude, p.coords.longitude),
+    () => toast('Нет доступа к геопозиции'), { enableHighAccuracy: true, timeout: 15000 });
+}
+
+// ───────────── Черновик: сохраняется при каждом изменении ─────────────
+function collect() {
+  const v = (id) => $('#' + id).value.trim();
+  const replace = state.workType === WORK.REPLACE;
+  return {
+    workType: state.workType,
+    serial: v('serial'), phase: state.phase, model: v('model'), year: v('year'),
+    seals: state.seals.map((s) => s.v), reading1: v('reading1'), reading2: v('reading2'),
+    oldSerial: replace ? v('oldSerial') : '',
+    oldReading: !replace ? '' : $('#oldUnreadable').checked ? OLD_UNREADABLE : v('oldReading'),
+    district: getDistrict(), street: getStreet(), house: v('house'), apt: v('apt'),
+    tp: v('tp'), feeder: v('feeder'), substation: v('substation'),
+    account: v('account'), abonent: v('abonent'), comment: v('comment'), geo: v('geo'),
+    photoIds: state.photos.filter((p) => p.id).map((p) => p.id),
+    aiFields: Array.from(state.ai), editedFields: Array.from(state.edited),
+  };
+}
+
+function missingFields(a) {
+  const m = [];
+  if (!a.serial) m.push('serial');
+  if (!a.phase) m.push('phase');
+  if (!a.reading1) m.push('reading1');
+  if (state.settings.requireSeals && !a.seals.length) m.push('seals');
+  if (a.workType === WORK.REPLACE && state.settings.requireOldMeter !== false) {
+    if (!a.oldSerial) m.push('oldSerial');
+    if (!a.oldReading) m.push('oldReading');
+  }
+  if (!a.district) m.push('district');
+  if (!a.street) m.push('street');
+  if (!a.house) m.push('house');
+  if (state.settings.requirePhoto && !a.photoIds.length) m.push('photos');
+  return m;
+}
+
+let saveTimer = null;
+function changed() {
+  if (ver('6.2')) tg.enableClosingConfirmation(); // не потерять заполненную форму случайным закрытием
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(saveDraft, 600);
+  refresh();
+}
+function refresh() {
+  const m = missingFields(collect());
+  const el = $('#missing');
+  el.textContent = m.length ? 'Не хватает: ' + m.map((k) => LABELS[k]).join(', ') : '';
+  el.classList.toggle('hidden', !m.length);
+}
+
+function draftPayload() {
+  const a = collect();
+  a.oldSerial = $('#oldSerial').value.trim();
+  a.oldReading = $('#oldUnreadable').checked ? OLD_UNREADABLE : $('#oldReading').value.trim();
+  a.photos = state.photos.filter((p) => p.id).map((p) => ({ id: p.id, url: p.url }));
+  return JSON.stringify(a);
+}
+function saveDraft() {
+  const s = draftPayload();
+  try { localStorage.setItem('meter_draft', s); } catch (e) { /* хранилище недоступно */ }
+  // Облачное хранилище Telegram: черновик переживёт очистку кэша и смену телефона (до 4096 символов)
+  // Поля снятого ПУ хранятся и при «Установке» — на случай, если вид работ переключили по ошибке
+  if (ver('6.9') && s.length < 4000) tg.CloudStorage.setItem('draft', s, () => {});
+}
+function clearDraft() {
+  try { localStorage.removeItem('meter_draft'); } catch (e) { /* хранилище недоступно */ }
+  if (ver('6.9')) tg.CloudStorage.removeItem('draft', () => {});
+}
+function readCloudDraft() {
+  return new Promise((resolve) => {
+    if (!ver('6.9')) return resolve(null);
+    tg.CloudStorage.getItem('draft', (err, v) => resolve(err ? null : v || null));
+  });
+}
+async function restoreDraft() {
+  let s = null;
+  try { s = localStorage.getItem('meter_draft'); } catch (e) { /* хранилище недоступно */ }
+  if (!s) s = await readCloudDraft();
+  if (!s) return;
+  let a;
+  try { a = JSON.parse(s); } catch (e) { return; }
+  TEXT_FIELDS.forEach((k) => {
+    if (a[k] && !(k === 'oldReading' && a[k] === OLD_UNREADABLE)) $('#' + k).value = a[k];
+  });
+  if (a.oldReading === OLD_UNREADABLE) setOldUnreadable(true);
+  if (a.workType) setWorkType(a.workType);
+  if (a.phase) setPhase(a.phase);
+  (a.seals || []).forEach((x) => addSeal(x, false));
+  setAddress(a.district, a.street);
+  (a.photos || []).forEach((p) => state.photos.push({ key: newId(), id: p.id, url: p.url, status: 'ok', text: 'Из черновика', thumb: '' }));
+  (a.aiFields || []).forEach((k) => setAiFlag(k, true));
+  (a.editedFields || []).forEach((k) => state.edited.add(k));
+  renderPhotos();
+  if (Object.values(a).some((v) => (Array.isArray(v) ? v.length : v))) toast('Восстановлен незаконченный акт');
+}
+
+// ───────────── Сохранение ─────────────
+async function submit(force) {
+  if (state.busy) return;
+  if (state.photos.some((p) => p.status === 'up')) return toast('Дождитесь загрузки фото');
+  const act = collect();
+  const m = missingFields(act);
+  $$('.invalid').forEach((e) => e.classList.remove('invalid'));
+  if (m.length) {
+    m.forEach((k) => {
+      const el = k === 'phase' ? $('#phase') : k === 'seals' ? $('#sealInput') : k === 'photos' ? null : $('#' + k);
+      if (el) el.classList.add('invalid');
+    });
+    haptic('error');
+    const first = m[0] === 'photos' ? $('#photos').parentElement : m[0] === 'phase' ? $('#phase') : $('#' + (m[0] === 'seals' ? 'sealInput' : m[0]));
+    if (first) first.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    return toast('Не хватает: ' + m.map((k) => LABELS[k]).join(', '));
+  }
+  state.busy = true;
+  if (tg) tg.MainButton.showProgress(true);
+  $('#fallbackSave').disabled = true;
+  try {
+    const r = await api('submit', { act, force: !!force, requestId: state.requestId });
+    if (r.duplicate) {
+      state.busy = false;
+      if (await confirmBox(r.error)) await submit(true); // ждём, чтобы кнопка не «ожила» раньше времени
+      return;
+    }
+    if (r.missing) return toast(r.error);
+    haptic('success');
+    clearDraft();
+    if (ver('6.2')) tg.disableClosingConfirmation();
+    showDone(r.act);
+  } catch (e) {
+    haptic('error');
+    alertBox('Акт не сохранён: ' + e.message + '\nДанные формы сохранены — попробуйте ещё раз.');
+  } finally {
+    state.busy = false;
+    if (tg) tg.MainButton.hideProgress();
+    $('#fallbackSave').disabled = false;
+  }
+}
+
+function showDone(act) {
+  $('#app').classList.add('hidden');
+  $('#done').classList.remove('hidden');
+  if (tg) tg.MainButton.hide();
+  $('#doneTitle').textContent = 'Акт ' + act.number + ' сохранён';
+  $('#doneText').textContent = act.pdfError
+    ? 'Строка в таблице создана, но PDF не сформирован: ' + act.pdfError + '. Офис сформирует его из таблицы.'
+    : 'PDF отправлен вам в чат с ботом — оттуда его можно распечатать или переслать.';
+  window.scrollTo(0, 0);
+}
+
+$('#newAct').addEventListener('click', () => window.location.reload());
+$('#closeApp').addEventListener('click', () => (tg ? tg.close() : window.location.reload()));
+
+init();
+</script>
+</body>
+</html>
