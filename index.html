@@ -218,6 +218,7 @@
     </div>
     <div class="field">
       <label for="street">Улица</label>
+      <input id="streetFilter" class="hidden" type="search" autocomplete="off" placeholder="🔍 Поиск: начните вводить название" style="margin-bottom:8px">
       <select id="street" disabled><option value="">Сначала выберите район</option></select>
       <input id="streetText" class="hidden" placeholder="Улица" style="margin-top:8px">
     </div>
@@ -409,30 +410,56 @@ function fillDistricts() {
   sel.add(new Option('Другой район…', '__other'));
 }
 
+/** Слова для поиска улицы: регистр, «ё», знаки и слова вроде «улица» не важны. */
+const STREET_WORDS = ['ул', 'улица', 'пер', 'переулок', 'пр', 'просп', 'проспект', 'наб', 'набережная', 'пл', 'площадь',
+  'туп', 'тупик', 'проезд', 'ш', 'шоссе'];
+function searchWords(s) {
+  return String(s || '').toLowerCase().replace(/ё/g, 'е').replace(/[^0-9a-zа-я]+/g, ' ').trim().split(' ')
+    .filter((w) => w && !STREET_WORDS.includes(w));
+}
+
 function fillStreets(selected) {
   const sel = $('#street');
+  const filter = $('#streetFilter');
   const d = state.districts.find((x) => x.name === $('#district').value);
   sel.innerHTML = '';
   if (!d && $('#district').value !== '__other') {
     sel.add(new Option('Сначала выберите район', ''));
     sel.disabled = true;
+    filter.classList.add('hidden');
     return;
   }
+  // Длинный список улиц (Сухум — почти 200): над ним строка поиска
+  const long = !!d && d.streets.length > 24;
+  filter.classList.toggle('hidden', !long);
+  if (!long || selected) filter.value = '';
+  const words = searchWords(filter.value);
+  const list = (d ? d.streets : []).filter((s) => {
+    const key = searchWords(s).join(' ');
+    return words.every((w) => key.includes(w));
+  });
   sel.disabled = false;
-  sel.add(new Option('Выберите улицу', ''));
-  (d ? d.streets : []).forEach((s) => sel.add(new Option(s, s)));
+  sel.add(new Option(words.length ? 'Найдено: ' + list.length + ' — выберите' : 'Выберите улицу', ''));
+  list.forEach((s) => sel.add(new Option(s, s)));
   sel.add(new Option('Другая улица…', '__other'));
   if (selected) {
     if (d && d.streets.includes(selected)) sel.value = selected;
     else { sel.value = '__other'; $('#streetText').value = selected; }
-  } else if (!d) {
-    sel.value = '__other'; // район введён вручную — улица тоже вручную
+  } else if (!d || !d.streets.length) {
+    sel.value = '__other'; // улиц района нет в справочнике — улица вручную
+  } else if (words.length && list.length === 1) {
+    sel.value = list[0]; // единственное совпадение — сразу выбрано
   }
   $('#streetText').classList.toggle('hidden', sel.value !== '__other');
 }
 
 $('#district').addEventListener('change', () => {
   $('#districtText').classList.toggle('hidden', $('#district').value !== '__other');
+  $('#streetFilter').value = '';
+  fillStreets();
+  changed();
+});
+$('#streetFilter').addEventListener('input', () => {
   fillStreets();
   changed();
 });
