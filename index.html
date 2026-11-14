@@ -115,6 +115,16 @@
     padding: 12px 14px; border-radius: 12px; font-size: 14px; z-index: 60; opacity: 0; transform: translateY(10px); transition: .2s; pointer-events: none; }
   .toast.show { opacity: 1; transform: none; }
   .hidden { display: none !important; }
+  /* Подписи пальцем: рамка с линией, без прокрутки страницы при рисовании */
+  .sign-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 12px 2px 6px; font-size: 14px; }
+  .sign-head:first-child { margin-top: 0; }
+  .sign-head button { min-height: 32px; font-size: 14px; padding: 0 10px; }
+  .sign-pad { display: block; width: 100%; height: 150px; border-radius: 10px; background: #fff; touch-action: none;
+    border: 1px dashed var(--hint); background-image: linear-gradient(to top, transparent 34px, #c9ccd6 34px, #c9ccd6 35px, transparent 35px); }
+  .sign-pad.signed { border-style: solid; border-color: var(--accent); }
+  .sign-who { color: var(--hint); font-size: 13px; margin: 4px 2px 0; }
+  /* Режим «только подписи» (кнопка «✍️ Подписи» в карточке бота) */
+  body.sign-mode #app > :not(header):not(#signSection):not(.notes):not(#fallbackSave) { display: none !important; }
 </style>
 </head>
 <body>
@@ -173,6 +183,10 @@
         <input id="year" inputmode="numeric" maxlength="4" placeholder="2025">
       </div>
     </div>
+    <div class="field">
+      <label for="current">Iном, А — ток, как на шильдике<span class="badge hidden" data-badge="current">ИИ</span></label>
+      <input id="current" autocomplete="off" placeholder="5(60)">
+    </div>
   </div>
 
   <div class="section-title">Пломбы<span class="badge hidden" data-badge="seals">ИИ</span></div>
@@ -222,9 +236,10 @@
       <select id="street" disabled><option value="">Сначала выберите район</option></select>
       <input id="streetText" class="hidden" placeholder="Улица" style="margin-top:8px">
     </div>
-    <div class="grid2 field">
+    <div class="grid3 field">
       <div><label for="house">Дом</label><input id="house" autocomplete="off" placeholder="12А"></div>
       <div><label for="apt">Квартира</label><input id="apt" autocomplete="off" placeholder="5"></div>
+      <div><label for="entrance">Подъезд</label><input id="entrance" inputmode="numeric" autocomplete="off" placeholder="—"></div>
     </div>
     <div class="grid3 field">
       <div><label for="tp">ТП</label><input id="tp" autocomplete="off" placeholder="233"></div>
@@ -251,6 +266,19 @@
     <div class="row field">
       <input class="grow" id="geo" readonly placeholder="Нет геопозиции">
       <button class="btn" id="getGeo">📍 Добавить</button>
+    </div>
+  </div>
+
+  <div id="signSection">
+    <div class="section-title">Подписи</div>
+    <div class="card">
+      <div class="sign-head"><span>Представитель РУП «Черноморэнерго»</span><button type="button" class="btn" data-clear="tech">Очистить</button></div>
+      <canvas class="sign-pad" id="sign_tech"></canvas>
+      <div class="sign-who" id="signTechWho"></div>
+      <div class="sign-head"><span>Представитель потребителя (абонент)</span><button type="button" class="btn" data-clear="abonent">Очистить</button></div>
+      <canvas class="sign-pad" id="sign_abonent"></canvas>
+      <div class="field"><label for="signer">Ф.И.О. подписавшего</label><input id="signer" autocomplete="off" placeholder="Если подписывает не абонент"></div>
+      <div class="hint">Распишитесь пальцем в рамке — подписи попадут в акт. Без подписи в акте останется линия для подписи от руки.</div>
     </div>
   </div>
 
@@ -292,13 +320,15 @@ const ver = (v) => !!(tg && tg.isVersionAtLeast && tg.isVersionAtLeast(v));
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => Array.from(document.querySelectorAll(s));
 
-const TEXT_FIELDS = ['serial', 'model', 'year', 'reading1', 'reading2', 'oldSerial', 'oldReading', 'house', 'apt',
-  'tp', 'feeder', 'substation', 'account', 'abonent', 'comment', 'geo'];
+const TEXT_FIELDS = ['serial', 'model', 'year', 'current', 'reading1', 'reading2', 'oldSerial', 'oldReading', 'house', 'apt',
+  'entrance', 'tp', 'feeder', 'substation', 'account', 'abonent', 'comment', 'geo', 'signer'];
 const LABELS = {
-  serial: 'номер ПУ', phase: 'тип', model: 'марка', year: 'год выпуска', reading1: 'показания', reading2: 'показания Т2',
+  serial: 'номер ПУ', phase: 'тип', model: 'марка', year: 'год выпуска', current: 'Iном', reading1: 'показания', reading2: 'показания Т2',
   seals: 'пломбы', district: 'район', street: 'улица', house: 'дом', photos: 'фото',
   oldSerial: 'номер снятого ПУ', oldReading: 'показания снятого ПУ',
 };
+// ?mode=sign — форма открыта кнопкой «✍️ Подписи» из карточки бота: только подписи к черновику в чате
+const SIGN_MODE = new URLSearchParams(window.location.search).get('mode') === 'sign';
 const WORK = { INSTALL: 'Установка', REPLACE: 'Замена' };
 const OLD_UNREADABLE = 'не читаются';
 
@@ -326,13 +356,18 @@ if (tg) {
   tg.ready();
   tg.expand();
   if (ver('7.7')) tg.disableVerticalSwipes(); // форма не закрывается случайным свайпом при прокрутке
-  tg.MainButton.setParams({ text: 'Сохранить акт', is_visible: true, is_active: true });
-  tg.MainButton.onClick(() => submit(false));
+  tg.MainButton.setParams({ text: SIGN_MODE ? 'Сохранить подписи' : 'Сохранить акт', is_visible: true, is_active: true });
+  tg.MainButton.onClick(() => (SIGN_MODE ? saveSignaturesOnly() : submit(false)));
 } else {
   $('#demoBanner').classList.remove('hidden');
   $('#fallbackSave').classList.remove('hidden');
 }
-$('#fallbackSave').addEventListener('click', () => submit(false));
+$('#fallbackSave').addEventListener('click', () => (SIGN_MODE ? saveSignaturesOnly() : submit(false)));
+if (SIGN_MODE) {
+  document.body.classList.add('sign-mode');
+  $('#title').textContent = 'Подписи к акту';
+  $('#fallbackSave').textContent = 'Сохранить подписи';
+}
 
 function toast(text, ms = 3000) {
   const t = $('#toast');
@@ -381,6 +416,8 @@ async function api(action, payload = {}) {
 
 // ───────────── Справочники ─────────────
 async function init() {
+  initSignPads();
+  if (SIGN_MODE) return initSignMode();
   try {
     if (DEMO) {
       $('#who').textContent = 'Демо-режим';
@@ -391,6 +428,7 @@ async function init() {
     } else {
       const r = await api('init');
       $('#who').textContent = 'Монтажник: ' + r.technician.name;
+      showTechnician(r.technician);
       state.districts = r.districts || [];
       state.settings = Object.assign(state.settings, r.settings || {});
     }
@@ -401,6 +439,35 @@ async function init() {
   fillDistricts();
   await restoreDraft();
   refresh();
+}
+
+/** Подпись под рамкой монтажника: «Электромонтёр, Сухумский филиал, Иванов И.И.» — так будет в акте. */
+function showTechnician(t) {
+  if (!t) return;
+  $('#signTechWho').textContent = [t.position, t.branch, t.name].filter(Boolean).join(', ');
+}
+
+/** Режим «только подписи»: что подписываем — из черновика в чате с ботом. */
+async function initSignMode() {
+  try {
+    if (DEMO) {
+      $('#who').textContent = 'Демо-режим: подписи не сохраняются';
+      return;
+    }
+    const r = await api('signInfo');
+    if (!r.ok) throw new Error(r.error || 'Черновик акта не найден');
+    const d = r.draft || {};
+    showTechnician(r.technician);
+    $('#who').textContent = [d.serial ? 'ПУ ' + d.serial : '', d.address].filter(Boolean).join(' · ') || 'Черновик акта';
+    if (d.signer) $('#signer').value = d.signer;
+    if (d.signedTech || d.signedAbonent) {
+      addNote('Подписи уже есть: ' + [d.signedTech ? 'монтажник' : '', d.signedAbonent ? 'абонент' : ''].filter(Boolean).join(', ') +
+        '. Новая подпись заменит прежнюю.');
+    }
+  } catch (e) {
+    $('#who').textContent = 'Ошибка: ' + e.message;
+    alertBox(e.message);
+  }
 }
 
 function fillDistricts() {
@@ -506,9 +573,15 @@ TEXT_FIELDS.forEach((key) => {
   el.addEventListener('input', () => {
     userEdited(key === 'reading2' ? 'reading1' : key);
     el.classList.remove('invalid');
+    if (key === 'signer') state.signerTouched = !!el.value.trim();
+    if (key === 'abonent') mirrorSigner();
     changed();
   });
 });
+/** «Ф.И.О. подписавшего» повторяет ФИО абонента, пока его не изменили вручную. */
+function mirrorSigner() {
+  if (!state.signerTouched) $('#signer').value = $('#abonent').value;
+}
 
 $$('#phase button').forEach((b) => b.addEventListener('click', () => {
   setPhase(b.dataset.v);
@@ -739,6 +812,7 @@ function mergeAi(ai, photoNo, kind) {
   fill('serial', ai.serial, ai.serialConf);
   fill('model', ai.model);
   fill('year', ai.year);
+  fill('current', ai.current);
   fill('reading1', ai.reading1, ai.readingConf);
   fill('reading2', ai.reading2, ai.readingConf);
   if (ai.phase && !state.phase) {
@@ -855,7 +929,10 @@ async function lookupAccount() {
   try {
     const r = await api('lookup', { account: acc });
     if (!r.abonent) return toast('Лицевой счёт не найден — введите ФИО вручную');
-    if (r.abonent.name) $('#abonent').value = r.abonent.name;
+    if (r.abonent.name) {
+      $('#abonent').value = r.abonent.name;
+      mirrorSigner();
+    }
     if (!getStreet() && r.abonent.street) {
       setAddress(r.abonent.district, r.abonent.street);
       if (r.abonent.house) $('#house').value = r.abonent.house;
@@ -892,13 +969,13 @@ function collect() {
   const replace = state.workType === WORK.REPLACE;
   return {
     workType: state.workType,
-    serial: v('serial'), phase: state.phase, model: v('model'), year: v('year'),
+    serial: v('serial'), phase: state.phase, model: v('model'), year: v('year'), current: v('current'),
     seals: state.seals.map((s) => s.v), reading1: v('reading1'), reading2: v('reading2'),
     oldSerial: replace ? v('oldSerial') : '',
     oldReading: !replace ? '' : $('#oldUnreadable').checked ? OLD_UNREADABLE : v('oldReading'),
-    district: getDistrict(), street: getStreet(), house: v('house'), apt: v('apt'),
+    district: getDistrict(), street: getStreet(), house: v('house'), apt: v('apt'), entrance: v('entrance'),
     tp: v('tp'), feeder: v('feeder'), substation: v('substation'),
-    account: v('account'), abonent: v('abonent'), comment: v('comment'), geo: v('geo'),
+    account: v('account'), abonent: v('abonent'), comment: v('comment'), geo: v('geo'), signer: v('signer'),
     photoIds: state.photos.filter((p) => p.id).map((p) => p.id),
     aiFields: Array.from(state.ai), editedFields: Array.from(state.edited),
   };
@@ -923,6 +1000,7 @@ function missingFields(a) {
 
 let saveTimer = null;
 function changed() {
+  if (SIGN_MODE) return; // в режиме подписей черновик формы не трогаем
   if (ver('6.2')) tg.enableClosingConfirmation(); // не потерять заполненную форму случайным закрытием
   clearTimeout(saveTimer);
   saveTimer = setTimeout(saveDraft, 600);
@@ -970,6 +1048,7 @@ async function restoreDraft() {
     if (a[k] && !(k === 'oldReading' && a[k] === OLD_UNREADABLE)) $('#' + k).value = a[k];
   });
   if (a.oldReading === OLD_UNREADABLE) setOldUnreadable(true);
+  state.signerTouched = !!a.signer && a.signer !== a.abonent;
   if (a.workType) setWorkType(a.workType);
   if (a.phase) setPhase(a.phase);
   (a.seals || []).forEach((x) => addSeal(x, false));
@@ -1002,7 +1081,8 @@ async function submit(force) {
   if (tg) tg.MainButton.showProgress(true);
   $('#fallbackSave').disabled = true;
   try {
-    const r = await api('submit', { act, force: !!force, requestId: state.requestId });
+    const signatures = { tech: padPng('tech'), abonent: padPng('abonent') };
+    const r = await api('submit', { act, signatures, force: !!force, requestId: state.requestId });
     if (r.duplicate) {
       state.busy = false;
       if (await confirmBox(r.error)) await submit(true); // ждём, чтобы кнопка не «ожила» раньше времени
@@ -1036,6 +1116,163 @@ function showDone(act) {
 
 $('#newAct').addEventListener('click', () => window.location.reload());
 $('#closeApp').addEventListener('click', () => (tg ? tg.close() : window.location.reload()));
+
+// ───────────── Подписи пальцем ─────────────
+// Штрихи хранятся точками (CSS-пиксели); на экране — с учётом плотности пикселей, в акт — обрезанный PNG
+// с прозрачным фоном, нарисованный заново из штрихов (чётко на любом телефоне).
+const pads = {};
+const INK = '#1a2a6c';
+
+function initSignPads() {
+  ['tech', 'abonent'].forEach((key) => {
+    const canvas = $('#sign_' + key);
+    const pad = { key, canvas, strokes: [], ctx: null, dpr: 1 };
+    pads[key] = pad;
+    let cur = null;
+    const pt = (e) => {
+      const r = canvas.getBoundingClientRect();
+      return [Math.round((e.clientX - r.left) * 10) / 10, Math.round((e.clientY - r.top) * 10) / 10];
+    };
+    canvas.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* старый браузер */ }
+      cur = [pt(e)];
+      pad.strokes.push(cur);
+      drawPad(pad);
+    });
+    canvas.addEventListener('pointermove', (e) => {
+      if (!cur) return;
+      e.preventDefault();
+      cur.push(pt(e));
+      drawPad(pad);
+    });
+    const end = () => {
+      if (!cur) return;
+      cur = null;
+      canvas.classList.toggle('signed', padSigned(key));
+      if (!SIGN_MODE) changed();
+    };
+    canvas.addEventListener('pointerup', end);
+    canvas.addEventListener('pointercancel', end);
+    resizePad(pad);
+  });
+  $$('[data-clear]').forEach((b) => b.addEventListener('click', () => clearPad(b.dataset.clear)));
+  window.addEventListener('resize', () => Object.values(pads).forEach(resizePad));
+}
+
+function resizePad(pad) {
+  const r = pad.canvas.getBoundingClientRect();
+  pad.dpr = window.devicePixelRatio || 1;
+  pad.canvas.width = Math.max(1, Math.round((r.width || 300) * pad.dpr));
+  pad.canvas.height = Math.max(1, Math.round((r.height || 150) * pad.dpr));
+  pad.ctx = pad.canvas.getContext ? pad.canvas.getContext('2d') : null;
+  drawPad(pad);
+}
+
+function strokePath(ctx, strokes, map) {
+  strokes.forEach((s) => {
+    if (!s.length) return;
+    ctx.beginPath();
+    const [x0, y0] = map(s[0]);
+    if (s.length === 1) {
+      ctx.arc(x0, y0, ctx.lineWidth / 2, 0, Math.PI * 2);
+      ctx.fillStyle = INK;
+      ctx.fill();
+      return;
+    }
+    ctx.moveTo(x0, y0);
+    for (let i = 1; i < s.length; i++) {
+      const [x, y] = map(s[i]);
+      ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+  });
+}
+
+function drawPad(pad) {
+  const ctx = pad.ctx;
+  if (!ctx) return;
+  ctx.clearRect(0, 0, pad.canvas.width, pad.canvas.height);
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = 2.4 * pad.dpr;
+  strokePath(ctx, pad.strokes, (p) => [p[0] * pad.dpr, p[1] * pad.dpr]);
+}
+
+function clearPad(key) {
+  const pad = pads[key];
+  if (!pad) return;
+  pad.strokes = [];
+  drawPad(pad);
+  pad.canvas.classList.remove('signed');
+  if (!SIGN_MODE) changed();
+}
+
+/** Границы подписи; случайное касание (точка до 12 px) подписью не считается. */
+function padBox(key) {
+  const pad = pads[key];
+  const pts = pad ? pad.strokes.flat() : [];
+  if (!pts.length) return null;
+  const xs = pts.map((p) => p[0]);
+  const ys = pts.map((p) => p[1]);
+  const box = { minX: Math.min(...xs), maxX: Math.max(...xs), minY: Math.min(...ys), maxY: Math.max(...ys) };
+  return box.maxX - box.minX < 12 && box.maxY - box.minY < 12 ? null : box;
+}
+
+function padSigned(key) {
+  return !!padBox(key);
+}
+
+/** Подпись в PNG (data URL) для акта или '' — если не расписались. */
+function padPng(key) {
+  const box = padBox(key);
+  if (!box) return '';
+  const margin = 4;
+  const w = box.maxX - box.minX + margin * 2;
+  const h = box.maxY - box.minY + margin * 2;
+  const scale = Math.min(3, 900 / w, 300 / h);
+  const c = document.createElement('canvas');
+  c.width = Math.max(1, Math.round(w * scale));
+  c.height = Math.max(1, Math.round(h * scale));
+  const ctx = c.getContext ? c.getContext('2d') : null;
+  if (!ctx) return '';
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = 2.4 * scale;
+  strokePath(ctx, pads[key].strokes, (p) => [(p[0] - box.minX + margin) * scale, (p[1] - box.minY + margin) * scale]);
+  return c.toDataURL('image/png');
+}
+
+/** Режим «только подписи»: сохранить подписи в черновик акта в боте и вернуться в чат. */
+async function saveSignaturesOnly() {
+  if (state.busy) return;
+  const tech = padPng('tech');
+  const abonent = padPng('abonent');
+  if (!tech && !abonent) return toast('Распишитесь хотя бы в одной рамке');
+  state.busy = true;
+  if (tg) tg.MainButton.showProgress(true);
+  $('#fallbackSave').disabled = true;
+  try {
+    await api('saveSignatures', { tech, abonent, signer: $('#signer').value.trim() });
+    haptic('success');
+    $('#app').classList.add('hidden');
+    $('#done').classList.remove('hidden');
+    $('#newAct').classList.add('hidden');
+    if (tg) tg.MainButton.hide();
+    $('#doneTitle').textContent = 'Подписи добавлены';
+    $('#doneText').textContent = 'Вернитесь в чат с ботом: в карточке акта появилась отметка о подписях. Осталось нажать «✅ Сохранить акт».';
+    setTimeout(() => tg && tg.close(), 2500);
+  } catch (e) {
+    haptic('error');
+    alertBox('Подписи не сохранены: ' + e.message);
+  } finally {
+    state.busy = false;
+    if (tg) tg.MainButton.hideProgress();
+    $('#fallbackSave').disabled = false;
+  }
+}
 
 init();
 </script>
