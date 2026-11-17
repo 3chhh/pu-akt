@@ -125,6 +125,11 @@
   .sign-who { color: var(--hint); font-size: 13px; margin: 4px 2px 0; }
   /* Режим «только подписи» (кнопка «✍️ Подписи» в карточке бота) */
   body.sign-mode #app > :not(header):not(#signSection):not(.notes):not(#fallbackSave) { display: none !important; }
+  /* Режим «номер ПУ по коду» (кнопка «📷 Штрих-код / QR» в карточке бота) */
+  body.scan-mode #app > :not(header):not(#scanSection):not(.notes):not(#fallbackSave) { display: none !important; }
+  .scan-hint { color: #fff; opacity: .85; font-size: 14px; text-align: center; padding: 8px 12px calc(12px + env(safe-area-inset-bottom)); }
+  #scanValue { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 18px; letter-spacing: .03em; }
+  #scanRaw { word-break: break-all; }
 </style>
 </head>
 <body>
@@ -134,6 +139,23 @@
     <div class="sub" id="who">Загрузка…</div>
   </header>
   <div class="banner hidden" id="demoBanner">Демо-режим: форма открыта не из Telegram. Откройте её кнопкой «Акт» в боте, чтобы сохранять акты.</div>
+
+  <div id="scanSection" class="hidden">
+    <div class="section-title">Штрих-код или QR-код</div>
+    <div class="card">
+      <div class="hint" style="margin-top:0">Наведите камеру на штрих-код или QR-код на счётчике — номер ПУ запишется в акт полностью, со всеми цифрами.</div>
+      <div class="grid2" style="margin-top:10px">
+        <button class="btn-primary btn-big" id="scanAgain">📷 Сканировать</button>
+        <button class="btn btn-big" id="scanFromPhoto">🖼 Код с фото</button>
+      </div>
+      <div class="field hidden" id="scanResult">
+        <label for="scanValue">Номер ПУ — сверьте с шильдиком</label>
+        <input id="scanValue" inputmode="text" autocomplete="off" autocapitalize="characters">
+        <div class="hint" id="scanRaw"></div>
+      </div>
+    </div>
+    <input type="file" id="fileScan" accept="image/*" capture="environment" hidden>
+  </div>
 
   <div class="section-title">Вид работ</div>
   <div class="card">
@@ -163,7 +185,7 @@
       <label for="serial">Заводской номер ПУ<span class="badge hidden" data-badge="serial">ИИ</span></label>
       <div class="row">
         <input class="grow" id="serial" inputmode="text" autocomplete="off" autocapitalize="characters" placeholder="0123456789">
-        <button class="btn btn-icon" id="scanSerial" title="Сканировать штрих-код">▦</button>
+        <button class="btn" id="scanSerial" title="Считать номер ПУ со штрих-кода или QR-кода">▦ Код</button>
       </div>
     </div>
     <div class="field">
@@ -298,8 +320,9 @@
 </div>
 
 <div class="modal" id="scanner" hidden>
-  <div class="top"><span id="scanTitle">Наведите на штрих-код</span><button id="scanClose">Закрыть</button></div>
+  <div class="top"><span id="scanTitle">Наведите на штрих-код или QR-код</span><button id="scanClose">Закрыть</button></div>
   <div id="scanRegion"></div>
+  <div class="scan-hint">Подойдёт штрих-код или QR-код. Держите телефон ровно, код — целиком в рамке.</div>
 </div>
 <div class="toast" id="toast"></div>
 
@@ -328,7 +351,10 @@ const LABELS = {
   oldSerial: 'номер снятого ПУ', oldReading: 'показания снятого ПУ',
 };
 // ?mode=sign — форма открыта кнопкой «✍️ Подписи» из карточки бота: только подписи к черновику в чате
-const SIGN_MODE = new URLSearchParams(window.location.search).get('mode') === 'sign';
+// ?mode=scan — кнопкой «📷 Штрих-код / QR»: только номер ПУ по коду для черновика в чате
+const MODE = new URLSearchParams(window.location.search).get('mode') || '';
+const SIGN_MODE = MODE === 'sign';
+const SCAN_MODE = MODE === 'scan';
 const WORK = { INSTALL: 'Установка', REPLACE: 'Замена' };
 const OLD_UNREADABLE = 'не читаются';
 
@@ -356,17 +382,26 @@ if (tg) {
   tg.ready();
   tg.expand();
   if (ver('7.7')) tg.disableVerticalSwipes(); // форма не закрывается случайным свайпом при прокрутке
-  tg.MainButton.setParams({ text: SIGN_MODE ? 'Сохранить подписи' : 'Сохранить акт', is_visible: true, is_active: true });
-  tg.MainButton.onClick(() => (SIGN_MODE ? saveSignaturesOnly() : submit(false)));
+  tg.MainButton.setParams({ text: SIGN_MODE ? 'Сохранить подписи' : SCAN_MODE ? 'Записать номер в акт' : 'Сохранить акт', is_visible: true, is_active: true });
+  tg.MainButton.onClick(mainAction);
 } else {
   $('#demoBanner').classList.remove('hidden');
   $('#fallbackSave').classList.remove('hidden');
 }
-$('#fallbackSave').addEventListener('click', () => (SIGN_MODE ? saveSignaturesOnly() : submit(false)));
+function mainAction() {
+  return SIGN_MODE ? saveSignaturesOnly() : SCAN_MODE ? saveScanOnly() : submit(false);
+}
+$('#fallbackSave').addEventListener('click', mainAction);
 if (SIGN_MODE) {
   document.body.classList.add('sign-mode');
   $('#title').textContent = 'Подписи к акту';
   $('#fallbackSave').textContent = 'Сохранить подписи';
+}
+if (SCAN_MODE) {
+  document.body.classList.add('scan-mode');
+  $('#title').textContent = 'Номер ПУ по коду';
+  $('#fallbackSave').textContent = 'Записать номер в акт';
+  $('#scanSection').classList.remove('hidden');
 }
 
 function toast(text, ms = 3000) {
@@ -418,6 +453,7 @@ async function api(action, payload = {}) {
 async function init() {
   initSignPads();
   if (SIGN_MODE) return initSignMode();
+  if (SCAN_MODE) return initScanMode();
   try {
     if (DEMO) {
       $('#who').textContent = 'Демо-режим';
@@ -709,10 +745,39 @@ function barcodeFormats() {
   return ['QR_CODE', 'DATA_MATRIX', 'CODE_128', 'CODE_39', 'CODE_93', 'ITF', 'EAN_13', 'EAN_8', 'CODABAR', 'UPC_A', 'PDF_417']
     .map((k) => F[k]).filter((v) => v !== undefined);
 }
-/** Номер ПУ из содержимого штрих-кода: цифровая последовательность 6–16 знаков. */
-function serialFromBarcode(text) {
-  const runs = String(text || '').match(/\d{6,16}/g) || [];
+/**
+ * Номер ПУ из содержимого штрих-кода или QR-кода (то же правило, что на сервере):
+ * 1) цифры после метки «S/N», «SN», «Зав. №», «№», «serial»; 2) параметр ссылки sn / serial / zn;
+ * 3) код только из цифр — группы через пробел или дефис склеиваются; 4) самая длинная последовательность цифр.
+ * Номер — 6–24 цифры, иначе ''.
+ */
+function serialFromCode(text) {
+  const s = String(text || '').trim();
+  if (!s) return '';
+  const ok = (v) => {
+    const d = String(v || '').replace(/\D/g, '');
+    return d.length >= 6 && d.length <= 24 ? d : '';
+  };
+  const label = s.match(/(?:^|[^A-Za-zА-Яа-яЁё])(?:s\/?n|serial(?:\s*(?:number|no))?|зав(?:одской|\.)?\s*(?:номер|№)?|№)\s*[:=#№.]?\s*(\d[\d \-]{4,40}\d)/i);
+  if (label && ok(label[1])) return ok(label[1]);
+  const param = s.match(/[?&;](?:sn|serial|zn|zav|num)=(\d[\d\-]{4,40})/i);
+  if (param && ok(param[1])) return ok(param[1]);
+  if (/^\d[\d \-]*$/.test(s) && ok(s)) return ok(s);
+  const runs = s.match(/\d{6,24}/g) || [];
   return runs.sort((a, b) => b.length - a.length)[0] || '';
+}
+/** Номер, введённый или прочитанный как есть: буквы и цифры без пробелов, 4–24 знака. */
+function cleanSerialInput(v) {
+  const s = String(v || '').toUpperCase().replace(/[^0-9A-ZА-ЯЁ]/g, '');
+  return s.length >= 4 && s.length <= 24 ? s : '';
+}
+/** Вид кода по формату сканера: «QR-код», «штрих-код». */
+function codeName(format) {
+  return /QR/.test(format || '') ? 'QR-код' : /DATA_MATRIX/.test(format || '') ? 'код DataMatrix' : 'штрих-код';
+}
+/** Формат из результата html5-qrcode (QR_CODE, CODE_128…). */
+function codeFormat(res) {
+  return (res && res.result && res.result.format && res.result.format.formatName) || '';
 }
 
 async function handlePhoto(file, kind) {
@@ -793,6 +858,11 @@ function mergeAi(ai, photoNo, kind) {
       el.value = v;
       setAiFlag(key === 'reading2' ? 'reading1' : key, true);
       if (conf !== undefined && conf < 0.6) addNote('Проверьте ' + (LABELS[key] || key) + ': ИИ не уверен.');
+    } else if ((key === 'serial' || key === 'oldSerial') && current !== v && current.indexOf(v) >= 0) {
+      // ИИ прочитал часть уже известного полного номера (например, без первых цифр) — оставляем полный
+    } else if ((key === 'serial' || key === 'oldSerial') && current !== v && v.indexOf(current) >= 0 && state.ai.has(key) && !state.edited.has(key)) {
+      el.value = v; // на этом фото номер виден целиком
+      addNote('Фото ' + photoNo + ': ' + (LABELS[key] || key) + ' дополнен до «' + v + '».');
     } else if (current.replace(',', '.') !== String(value)) {
       addNote('Фото ' + photoNo + ': ' + (LABELS[key] || key) + ' «' + v + '» не совпадает с «' + current + '».', () => {
         el.value = v;
@@ -825,18 +895,24 @@ function mergeAi(ai, photoNo, kind) {
   else if (ai.notes) addNote('Фото ' + photoNo + ': ' + ai.notes);
 }
 
-/** Номер со штрих-кода точнее ИИ, но EAN/UPC обычно код товара, а не заводской номер. */
+/** Номер со штрих-кода или QR-кода точнее ИИ, но EAN/UPC обычно код товара, а не заводской номер. */
 function applyBarcode(code) {
-  const serial = serialFromBarcode(code.text);
+  const serial = serialFromCode(code.text);
   if (!serial) return;
   const productCode = /EAN|UPC/.test(code.format);
+  const name = codeName(code.format);
   const el = $('#serial');
-  if (!el.value.trim() && !productCode) {
+  const cur = el.value.trim();
+  if (!cur && !productCode) {
     el.value = serial;
     setAiFlag('serial', true);
-    addNote('Номер ПУ взят из штрих-кода — сверьте с шильдиком.');
-  } else if (el.value.trim() !== serial) {
-    addNote('Штрих-код: ' + serial + (productCode ? ' (похоже на код товара)' : ''), () => {
+    addNote('Номер ПУ взят из кода (' + name + ') — сверьте с шильдиком.');
+  } else if (cur && !productCode && serial.length > cur.length && serial.indexOf(cur) >= 0 && !state.edited.has('serial')) {
+    el.value = serial; // в поле только часть номера, в коде — полный
+    setAiFlag('serial', true);
+    addNote('Номер ПУ дополнен по коду (' + name + '): ' + serial + ' — сверьте с шильдиком.');
+  } else if (cur !== serial && cur.indexOf(serial) < 0) {
+    addNote('Код: ' + serial + (productCode ? ' (похоже на код товара)' : ''), () => {
       el.value = serial;
       userEdited('serial');
       changed();
@@ -879,11 +955,12 @@ function renderNotes() {
 // ───────────── Сканер штрих-кодов (камера) ─────────────
 let scanner = null;
 async function openScanner(title, onResult) {
-  if (!window.Html5Qrcode) return alertBox('Сканер не загрузился. Сфотографируйте штрих-код кнопкой «Счётчик».');
+  const photoHint = SCAN_MODE ? 'кнопкой «🖼 Код с фото»' : 'кнопкой «Счётчик»';
+  if (!window.Html5Qrcode) return alertBox('Сканер не загрузился. Сфотографируйте код ' + photoHint + '.');
   $('#scanTitle').textContent = title;
   $('#scanner').hidden = false;
   scanner = new Html5Qrcode('scanRegion', {
-    formatsToSupport: barcodeFormats(),
+    formatsToSupport: barcodeFormats(), // и штрих-коды, и QR, и DataMatrix
     verbose: false,
     useBarCodeDetectorIfSupported: true, // встроенный распознаватель браузера, если есть
     experimentalFeatures: { useBarCodeDetectorIfSupported: true },
@@ -891,13 +968,14 @@ async function openScanner(title, onResult) {
   try {
     await scanner.start(
       { facingMode: 'environment' },
-      { fps: 10, qrbox: (w, h) => ({ width: Math.max(120, Math.floor(w * 0.85)), height: Math.max(80, Math.floor(h * 0.4)) }) },
-      (text) => { haptic('success'); closeScanner(); onResult(text); },
+      // Рамка почти на весь кадр: в неё помещается и длинный штрих-код, и квадратный QR-код
+      { fps: 10, qrbox: (w, h) => ({ width: Math.max(150, Math.floor(w * 0.9)), height: Math.max(150, Math.floor(h * 0.7)) }) },
+      (text, res) => { haptic('success'); closeScanner(); onResult(text, codeFormat(res)); },
       () => {}
     );
   } catch (e) {
     closeScanner();
-    alertBox('Камера недоступна (' + (e.message || e) + '). Разрешите доступ к камере для Telegram или сфотографируйте штрих-код кнопкой «Счётчик».');
+    alertBox('Камера недоступна (' + (e.message || e) + '). Разрешите Telegram доступ к камере или сфотографируйте код ' + photoHint + '.');
   }
 }
 async function closeScanner() {
@@ -910,13 +988,81 @@ async function closeScanner() {
   }
 }
 $('#scanClose').addEventListener('click', closeScanner);
-$('#scanSerial').addEventListener('click', () => openScanner('Штрих-код номера ПУ', (text) => {
-  const serial = serialFromBarcode(text) || cleanSeal(text);
+$('#scanSerial').addEventListener('click', () => openScanner('Штрих-код или QR-код номера ПУ', (text, format) => {
+  const serial = serialFromCode(text) || cleanSerialInput(text);
+  if (!serial) return alertBox('В коде не найден номер ПУ: «' + String(text).slice(0, 60) + '». Введите номер вручную.');
   $('#serial').value = serial;
   userEdited('serial');
   changed();
-  toast('Номер ПУ: ' + serial);
+  toast('Номер ПУ: ' + serial + (/EAN|UPC/.test(format) ? ' — похоже на код товара, сверьте с шильдиком' : ''));
 }));
+
+// ───────────── Номер ПУ по коду для черновика в боте (?mode=scan) ─────────────
+async function initScanMode() {
+  try {
+    if (DEMO) {
+      $('#who').textContent = 'Демо-режим: номер не сохраняется';
+      return;
+    }
+    const r = await api('signInfo');
+    if (!r.ok) throw new Error(r.error || 'Черновик акта не найден');
+    const d = r.draft || {};
+    $('#who').textContent = d.serial ? 'Сейчас в акте: ПУ ' + d.serial : 'Номера ПУ в акте пока нет';
+  } catch (e) {
+    $('#who').textContent = 'Ошибка: ' + e.message;
+    alertBox(e.message);
+    return;
+  }
+  openScanner('Штрих-код или QR-код номера ПУ', showScanResult);
+}
+function showScanResult(text, format) {
+  state.scan = { text: String(text || ''), format: format || '' };
+  const serial = serialFromCode(text) || cleanSerialInput(text);
+  $('#scanValue').value = serial;
+  $('#scanRaw').textContent = 'Прочитан ' + codeName(format) + ': ' + String(text || '').slice(0, 200);
+  $('#scanResult').classList.remove('hidden');
+  if (!serial) addNote('В коде не найден номер ПУ — введите его вручную.');
+  else if (/EAN|UPC/.test(format || '')) addNote('Похоже на код товара, а не заводской номер — сверьте с шильдиком.');
+  else toast('Номер ПУ: ' + serial);
+}
+$('#scanAgain').addEventListener('click', () => openScanner('Штрих-код или QR-код номера ПУ', showScanResult));
+$('#scanFromPhoto').addEventListener('click', () => $('#fileScan').click());
+$('#fileScan').addEventListener('change', async (e) => {
+  const file = e.target.files && e.target.files[0];
+  e.target.value = '';
+  if (!file) return;
+  toast('Ищу код на фото…');
+  const code = await barcodeFromFile(file);
+  if (code) showScanResult(code.text, code.format);
+  else alertBox('На фото не найден штрих-код или QR-код. Снимите код крупнее, ровно и без бликов.');
+});
+/** Сохраняет номер в черновик акта в боте и возвращает в чат. */
+async function saveScanOnly() {
+  if (state.busy) return;
+  const serial = cleanSerialInput($('#scanValue').value);
+  if (!serial) return toast('Отсканируйте код или введите номер ПУ');
+  state.busy = true;
+  if (tg) tg.MainButton.showProgress(true);
+  $('#fallbackSave').disabled = true;
+  try {
+    const r = await api('saveScan', { serial, text: state.scan ? state.scan.text : '', format: state.scan ? state.scan.format : '' });
+    haptic('success');
+    $('#app').classList.add('hidden');
+    $('#done').classList.remove('hidden');
+    $('#newAct').classList.add('hidden');
+    if (tg) tg.MainButton.hide();
+    $('#doneTitle').textContent = 'Номер ПУ записан';
+    $('#doneText').textContent = 'Вернитесь в чат с ботом: номер ' + (r.serial || serial) + ' уже в карточке акта.';
+    setTimeout(() => tg && tg.close(), 2500);
+  } catch (e) {
+    haptic('error');
+    alertBox('Номер не записан: ' + e.message);
+  } finally {
+    state.busy = false;
+    if (tg) tg.MainButton.hideProgress();
+    $('#fallbackSave').disabled = false;
+  }
+}
 $('#scanSeal').addEventListener('click', () => openScanner('Штрих-код или QR пломбы', (text) => {
   if (addSeal(text, false)) { changed(); toast('Пломба добавлена'); } else toast('Не похоже на номер пломбы: ' + text);
 }));
@@ -1000,7 +1146,7 @@ function missingFields(a) {
 
 let saveTimer = null;
 function changed() {
-  if (SIGN_MODE) return; // в режиме подписей черновик формы не трогаем
+  if (SIGN_MODE || SCAN_MODE) return; // в режимах подписей и кода черновик формы не трогаем
   if (ver('6.2')) tg.enableClosingConfirmation(); // не потерять заполненную форму случайным закрытием
   clearTimeout(saveTimer);
   saveTimer = setTimeout(saveDraft, 600);
